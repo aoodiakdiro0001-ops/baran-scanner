@@ -1,0 +1,12 @@
+{
+  "name": "baran-scanner",
+  "version": "1.0.0",
+  "description": "Autonomous crypto market scanner",
+  "main": "CoreEngine.js",
+  "scripts": {
+    "start": "node CoreEngine.js"
+  },
+  "dependencies": {
+    "ethers": "^6.11.0"
+  }
+}
