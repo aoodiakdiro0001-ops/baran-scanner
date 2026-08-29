@@ -6,15 +6,15 @@ const TELEGRAM_CHAT_ID = "589920599";
 
 const provider = new ethers.JsonRpcProvider(RPC_URL);
 
-const ROUTER_TRADER_JOE = "0x60aE616a2155Ee3d9A68541Ba4544862310933d4";
-const ROUTER_PANGOLIN = "0xE54Ca86531e17ef3616d22Ca28b0D458b6C81616";
+const ROUTER_TRADER_JOE = ethers.getAddress("0x60aE616a2155Ee3d9A68541Ba4544862310933d4");
+const ROUTER_PANGOLIN = ethers.getAddress("0xE54Ca86531e17ef3616d22Ca28b0D458b6C81616");
 
 const ROUTER_ABI = [
     "function getAmountsOut(uint amountIn, address[] memory path) public view returns (uint[] memory amounts)"
 ];
 
-const WAVAX = "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7";
-const USDC = "0xB97EF9Ef8734C71904D8002F8b6bc66Dd9c48a6E";
+const WAVAX = ethers.getAddress("0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7");
+const USDC = ethers.getAddress("0xB97EF9Ef8734C71904D8002F8b6bc66Dd9c48a6E");
 
 const TRADE_AMOUNT = ethers.parseUnits("0.5", 18);
 
