@@ -11,10 +11,14 @@ server.listen(PORT, () => {
 });
 
 const RPC_URL = process.env.RPC_URL || "https://api.avax.network/ext/bc/C/rpc";
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "8750924124:AAHMDF2K4V2vATt0THI4m8LNykFwWsVmlo";
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = "589920599";
 
-console.log("Active Telegram Token Prefix:", TELEGRAM_BOT_TOKEN.substring(0, 12) + "...");
+if (!TELEGRAM_BOT_TOKEN) {
+    console.error("CRITICAL ERROR: TELEGRAM_BOT_TOKEN is missing in environment variables!");
+} else {
+    console.log("Loaded Telegram Token Successfully. Prefix:", TELEGRAM_BOT_TOKEN.substring(0, 10) + "...");
+}
 
 const provider = new ethers.JsonRpcProvider(RPC_URL);
 
@@ -41,6 +45,7 @@ let totalScansCount = 0;
 let telegramOffset = 0;
 
 async function sendTelegramMessage(chatId, message) {
+    if (!TELEGRAM_BOT_TOKEN) return;
     try {
         const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
         await fetch(url, {
@@ -58,11 +63,12 @@ async function sendTelegramMessage(chatId, message) {
 }
 
 async function clearTelegramWebhook() {
+    if (!TELEGRAM_BOT_TOKEN) return;
     try {
         const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/deleteWebhook?drop_pending_updates=true`;
         const res = await fetch(url);
         const data = await res.json();
-        console.log("Webhook cleared successfully:", data);
+        console.log("Webhook cleared response:", data);
     } catch (err) {
         console.error("Failed to clear webhook:", err.message);
     }
@@ -154,6 +160,7 @@ async function scanMarketOpportunities(isManualTrigger = false, manualChatId = n
 }
 
 async function pollTelegramCommands() {
+    if (!TELEGRAM_BOT_TOKEN) return;
     try {
         const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getUpdates?offset=${telegramOffset}&timeout=2`;
         const response = await fetch(url);
