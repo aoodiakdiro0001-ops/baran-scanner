@@ -105,7 +105,7 @@ async function handleTelegramUpdate(update) {
             await scanMarketOpportunities(true, chatId);
         } else if (text === "/subscribe") {
             const subMsg = `💎 *Baran Micro-SaaS Subscription*\n\n` +
-                `To access live arbitrage feeds across BaseSwap, AlienBase, and Aerodrome, send your micro-fee to the official system treasury:\n\n` +
+                `To access live arbitrage feeds across BaseSwap, AlienBase, and Aerodrome, send the fixed micro-fee of *0.0005 ETH* (or 1 USDC) to the official system treasury:\n\n` +
                 `\`${ADMIN_WALLET}\`\n\n` +
                 `Once transferred, your node access will be authorized.`;
             await sendTelegramMessage(chatId, subMsg);
