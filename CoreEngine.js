@@ -34,6 +34,7 @@ function rotateRpc() {
 
 const ROUTER_BASESWAP = "0x327Df1Ede4564DDf2Bf58fD50C4f6Facd6557cd8";
 const ROUTER_ALIENBASE = "0x16345EA9518e3881477F5C7C3E29EB3e717D5c7d";
+const ROUTER_AERODROME = "0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43";
 
 const ROUTER_ABI = [
     "function getAmountsOut(uint amountIn, address[] memory path) public view returns (uint[] memory amounts)"
@@ -92,7 +93,7 @@ async function handleTelegramUpdate(update) {
 
         if (text === "/status") {
             const statusMsg = `🟢 *Baran Micro-SaaS Status*\n\n` +
-                `- State: Live & Secured (Webhook Mode)\n` +
+                `- State: Live & Secured (3-DEX Triangulation Active)\n` +
                 `- Last Block: ${lastScannedBlock}\n` +
                 `- Total Scans: ${totalScansCount}\n` +
                 `- Active RPC: ${RPC_URLS[rpcIndex]}\n` +
@@ -100,11 +101,11 @@ async function handleTelegramUpdate(update) {
                 `- Capital Profile: Micro ($11 Base Optimized)`;
             await sendTelegramMessage(chatId, statusMsg);
         } else if (text === "/scan") {
-            await sendTelegramMessage(chatId, `🔍 Executing immediate micro-scan...`);
+            await sendTelegramMessage(chatId, `🔍 Executing immediate 3-DEX micro-scan...`);
             await scanMarketOpportunities(true, chatId);
         } else if (text === "/subscribe") {
             const subMsg = `💎 *Baran Micro-SaaS Subscription*\n\n` +
-                `To access live arbitrage feeds and automated infrastructure routing, send your micro-fee to the official system treasury on Base network:\n\n` +
+                `To access live arbitrage feeds across BaseSwap, AlienBase, and Aerodrome, send your micro-fee to the official system treasury:\n\n` +
                 `\`${ADMIN_WALLET}\`\n\n` +
                 `Once transferred, your node access will be authorized.`;
             await sendTelegramMessage(chatId, subMsg);
@@ -137,7 +138,7 @@ const server = http.createServer(async (req, res) => {
         });
     } else {
         res.writeHead(200, { "Content-Type": "text/plain" });
-        res.end("Baran Micro-SaaS Base Engine is active (Webhook Mode)!\n");
+        res.end("Baran Micro-SaaS Base Engine is active (3-DEX Mode)!\n");
     }
 });
 
@@ -154,41 +155,40 @@ async function scanMarketOpportunities(isManualTrigger = false, manualChatId = n
 
         const baseSwapContract = new ethers.Contract(ROUTER_BASESWAP, ROUTER_ABI, provider);
         const alienBaseContract = new ethers.Contract(ROUTER_ALIENBASE, ROUTER_ABI, provider);
+        const aerodromeContract = new ethers.Contract(ROUTER_AERODROME, ROUTER_ABI, provider);
 
         const feeData = await provider.getFeeData();
         const gasPrice = feeData.gasPrice || feeData.maxFeePerGas || ethers.parseUnits("0.01", 9);
         const gasCostInWeth = gasPrice * ESTIMATED_GAS_UNITS;
 
+        const exchanges = [
+            { name: "BaseSwap", contract: baseSwapContract },
+            { name: "AlienBase", contract: alienBaseContract },
+            { name: "Aerodrome", contract: aerodromeContract }
+        ];
+
         for (const token of TARGET_TOKENS) {
             try {
                 const pathForward = [WETH, token.address];
+                let results = [];
 
-                let amountsBaseSwap = null;
-                let amountsAlienBase = null;
-
-                try {
-                    amountsBaseSwap = await baseSwapContract.getAmountsOut(TRADE_AMOUNT, pathForward);
-                } catch (e) {}
-
-                try {
-                    amountsAlienBase = await alienBaseContract.getAmountsOut(TRADE_AMOUNT, pathForward);
-                } catch (e) {}
-
-                if (!amountsBaseSwap || !amountsAlienBase) continue;
-
-                const outputBaseSwap = amountsBaseSwap[1];
-                const outputAlienBase = amountsAlienBase[1];
-
-                let grossProfit = 0n;
-                let executionRoute = "";
-
-                if (outputBaseSwap > outputAlienBase) {
-                    grossProfit = outputBaseSwap - outputAlienBase;
-                    executionRoute = "Buy on AlienBase ➔ Sell on BaseSwap";
-                } else {
-                    grossProfit = outputAlienBase - outputBaseSwap;
-                    executionRoute = "Buy on BaseSwap ➔ Sell on AlienBase";
+                for (let ex of exchanges) {
+                    try {
+                        const amounts = await ex.contract.getAmountsOut(TRADE_AMOUNT, pathForward);
+                        results.push({ name: ex.name, output: amounts[1] });
+                    } catch (e) {}
                 }
+
+                if (results.length < 2) continue;
+
+                results.sort((a, b) => (b.output > a.output ? 1 : -1));
+                const bestSell = results[0];
+                const bestBuy = results[results.length - 1];
+
+                if (bestSell.name === bestBuy.name) continue;
+
+                const grossProfit = bestSell.output - bestBuy.output;
+                const executionRoute = `Buy on ${bestBuy.name} ➔ Sell on ${bestSell.name}`;
 
                 let wethToTokenRate = ethers.parseUnits("1", token.decimals);
                 try {
@@ -203,7 +203,7 @@ async function scanMarketOpportunities(isManualTrigger = false, manualChatId = n
 
                 if (netProfit > minNetProfitThreshold) {
                     const alertText =
-                        `🚀 *Baran Micro-Arbitrage Signal (${token.name})!*\n\n` +
+                        `🚀 *Baran 3-DEX Arbitrage Signal (${token.name})!*\n\n` +
                         `📍 *Route:* ${executionRoute}\n` +
                         `💰 *Gross Spread:* ${ethers.formatUnits(grossProfit, token.decimals)} ${token.name}\n` +
                         `⛽ *Gas Cost:* ${ethers.formatUnits(gasCostInToken, token.decimals)} ${token.name}\n` +
@@ -217,14 +217,15 @@ async function scanMarketOpportunities(isManualTrigger = false, manualChatId = n
         }
 
         if (isManualTrigger && manualChatId) {
-            const reportText = `📊 *Micro-SaaS Manual Scan Report*\n\n` +
+            const reportText = `📊 *3-DEX Manual Scan Report*\n\n` +
                 `- Current Block: ${currentBlock}\n` +
                 `- Total Scans: ${totalScansCount}\n` +
+                `- Exchanges: BaseSwap, AlienBase, Aerodrome\n` +
                 `- Treasury: \`${ADMIN_WALLET}\`\n` +
                 `- Status: Budget optimized ($11 capital profile active).`;
             await sendTelegramMessage(manualChatId, reportText);
         } else {
-            console.log(`Scanning block ${currentBlock} with optimized micro-budget... Engine operating smoothly.`);
+            console.log(`Scanning block ${currentBlock} across 3 DEXs... Engine operating smoothly.`);
         }
 
     } catch (error) {
@@ -233,7 +234,7 @@ async function scanMarketOpportunities(isManualTrigger = false, manualChatId = n
     }
 }
 
-console.log("Baran Command Center & Micro-SaaS Engine Initializing (Webhook Architecture)...");
+console.log("Baran Command Center & 3-DEX Micro-SaaS Engine Initializing...");
 const scannerInterval = setInterval(() => scanMarketOpportunities(false), 4000);
 
 process.on('SIGTERM', () => {
