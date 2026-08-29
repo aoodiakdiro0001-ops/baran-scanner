@@ -1,7 +1,7 @@
 const { ethers } = require("ethers");
 const http = require("http");
 
-// إنشاء خادم HTTP مصغر لتلبية متطلبات منصة Render ومنع خطأ الـ Timeout
+// خادم HTTP مصغر لتلبية متطلبات منصة Render
 const PORT = process.env.PORT || 10000;
 const server = http.createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "text/plain" });
@@ -25,7 +25,8 @@ const ROUTER_ABI = [
 ];
 
 const WAVAX = "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7";
-const USDC = "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e";
+// استخدام USDC.e ذات السيولة العالية لضمان نجاح الاستعلام
+const USDC = "0xa7d7079b0fead9163e65000e819f6db45a0f87c4";
 
 const TRADE_AMOUNT = ethers.parseUnits("0.5", 18);
 
