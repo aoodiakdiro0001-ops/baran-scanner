@@ -25,8 +25,8 @@ const ROUTER_ABI = [
 ];
 
 const WAVAX = "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7";
-// استخدام USDC.e ذات السيولة العالية لضمان نجاح الاستعلام
-const USDC = "0xa7d7079b0fead9163e65000e819f6db45a0f87c4";
+// استخدام عملة JOE لضمان توفر حوض السيولة على المنصتين معاً
+const JOE_TOKEN = "0x6e846114e9f7bd1677ee5048434f13e9fe6da0c7";
 
 const TRADE_AMOUNT = ethers.parseUnits("0.5", 18);
 
@@ -52,7 +52,7 @@ async function scanMarketOpportunities() {
         const traderJoeContract = new ethers.Contract(ROUTER_TRADER_JOE, ROUTER_ABI, provider);
         const pangolinContract = new ethers.Contract(ROUTER_PANGOLIN, ROUTER_ABI, provider);
 
-        const pathForward = [WAVAX, USDC];
+        const pathForward = [WAVAX, JOE_TOKEN];
 
         const amountsJoe = await traderJoeContract.getAmountsOut(TRADE_AMOUNT, pathForward);
         const amountsPangolin = await pangolinContract.getAmountsOut(TRADE_AMOUNT, pathForward);
@@ -74,7 +74,7 @@ async function scanMarketOpportunities() {
         const profitThreshold = (TRADE_AMOUNT * 2n) / 1000n;
 
         if (priceDifference > profitThreshold) {
-            const alertText = `🚨 *Baran Arbitrage Signal Detected!*\n\nRoute: ${executionRoute}\nSpread: ${ethers.formatUnits(priceDifference, 6)} USDC\nNetwork: Avalanche C-Chain`;
+            const alertText = `🚨 *Baran Arbitrage Signal Detected!*\n\nRoute: ${executionRoute}\nSpread: ${ethers.formatUnits(priceDifference, 18)} JOE\nNetwork: Avalanche C-Chain`;
             console.log(alertText);
             await sendTelegramAlert(alertText);
         } else {
