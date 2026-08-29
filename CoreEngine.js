@@ -12,6 +12,7 @@ let rpcIndex = 0;
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ? process.env.TELEGRAM_BOT_TOKEN.trim() : "";
 const RENDER_EXTERNAL_URL = "https://baran-scanner.onrender.com";
 const ADMIN_CHAT_ID = "589920599";
+const allowedUsers = new Set([ADMIN_CHAT_ID, 589920599, "589920599", Number(ADMIN_CHAT_ID)]);
 
 if (!TELEGRAM_BOT_TOKEN) {
     console.error("CRITICAL ERROR: TELEGRAM_BOT_TOKEN is missing in environment variables!");
@@ -51,7 +52,6 @@ const ESTIMATED_GAS_UNITS = 180000n;
 
 let lastScannedBlock = 0;
 let totalScansCount = 0;
-const allowedUsers = new Set([ADMIN_CHAT_ID]);
 
 async function sendTelegramMessage(chatId, message) {
     if (!TELEGRAM_BOT_TOKEN) return;
@@ -89,9 +89,10 @@ async function handleTelegramUpdate(update) {
         const chatId = update.message.chat.id;
         const text = update.message.text.trim();
         const chatIdStr = chatId.toString();
+        const chatIdNum = Number(chatId);
         console.log(`Received command from chat ${chatIdStr}: ${text}`);
 
-        if (!allowedUsers.has(chatIdStr)) {
+        if (!allowedUsers.has(chatIdStr) && !allowedUsers.has(chatIdNum) && chatIdStr !== ADMIN_CHAT_ID) {
             await sendTelegramMessage(chatId, `🔒 *Access Denied*\nYour Telegram Chat ID is: \`${chatIdStr}\`\nUpdate ADMIN_CHAT_ID in your code with this number.`);
             return;
         }
