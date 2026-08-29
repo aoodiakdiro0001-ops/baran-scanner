@@ -1,4 +1,4 @@
-const { ethers } = require("ethers");
+٣const { ethers } = require("ethers");
 const http = require("http");
 
 // خادم HTTP مصغر لتلبية متطلبات منصة Render
@@ -25,9 +25,9 @@ const ROUTER_ABI = [
 ];
 
 const WAVAX = "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7";
-const JOE_TOKEN = "0x6e846114e9f7bd1677ee5048434f13e9fe6da0c7";
+const USDT = "0x9702230a8ea53601f5cd2dc00fdbc13d4d4a84fd";
 
-const TRADE_AMOUNT = ethers.parseUnits("0.5", 18);
+const TRADE_AMOUNT = ethers.parseUnits("1.0", 18);
 
 async function sendTelegramAlert(message) {
     try {
@@ -51,7 +51,7 @@ async function scanMarketOpportunities() {
         const traderJoeContract = new ethers.Contract(ROUTER_TRADER_JOE, ROUTER_ABI, provider);
         const pangolinContract = new ethers.Contract(ROUTER_PANGOLIN, ROUTER_ABI, provider);
 
-        const pathForward = [WAVAX, JOE_TOKEN];
+        const pathForward = [WAVAX, USDT];
 
         let amountsJoe = null;
         let amountsPangolin = null;
@@ -59,13 +59,13 @@ async function scanMarketOpportunities() {
         try {
             amountsJoe = await traderJoeContract.getAmountsOut(TRADE_AMOUNT, pathForward);
         } catch (err) {
-            // تجاهل الاخطاء المؤقتة لعدم توفر السيولة اللحظية على المنصة الأولى
+            // تجاهل الاخطاء المؤقتة لعدم توفر السيولة اللحظية
         }
 
         try {
             amountsPangolin = await pangolinContract.getAmountsOut(TRADE_AMOUNT, pathForward);
         } catch (err) {
-            // تجاهل الاخطاء المؤقتة لعدم توفر السيولة اللحظية على المنصة الثانية
+            // تجاهل الاخطاء المؤقتة لعدم توفر السيولة اللحظية
         }
 
         if (!amountsJoe || !amountsPangolin) {
@@ -90,11 +90,11 @@ async function scanMarketOpportunities() {
         const profitThreshold = (TRADE_AMOUNT * 2n) / 1000n;
 
         if (priceDifference > profitThreshold) {
-            const alertText = `🚨 *Baran Arbitrage Signal Detected!*\n\nRoute: ${executionRoute}\nSpread: ${ethers.formatUnits(priceDifference, 18)} JOE\nNetwork: Avalanche C-Chain`;
+            const alertText = `🚨 *Baran Arbitrage Signal Detected!*\n\nRoute: ${executionRoute}\nSpread: ${ethers.formatUnits(priceDifference, 6)} USDT\nNetwork: Avalanche C-Chain`;
             console.log(alertText);
             await sendTelegramAlert(alertText);
         } else {
-            console.log("Scanning block... Market balanced.");
+            console.log("Scanning block... Market balanced (USDT pair active).");
         }
 
     } catch (error) {
@@ -102,5 +102,5 @@ async function scanMarketOpportunities() {
     }
 }
 
-console.log("Baran Autonomous Engine Activated. Scanning blocks...");
+console.log("Baran Autonomous Engine Activated. Scanning blocks with USDT pair...");
 setInterval(scanMarketOpportunities, 4000);
