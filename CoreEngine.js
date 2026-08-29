@@ -12,6 +12,7 @@ let rpcIndex = 0;
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ? process.env.TELEGRAM_BOT_TOKEN.trim() : "";
 const RENDER_EXTERNAL_URL = "https://baran-scanner.onrender.com";
 const ADMIN_CHAT_ID = "589920599";
+const CHANNEL_ID = "@baran_3dex_signals"; // معرف قناتك العامة لبث الإشارات
 const ADMIN_WALLET = "0xDda2b17Dc7437700DE7EeFe564610a6a1976de6c";
 
 if (!TELEGRAM_BOT_TOKEN) {
@@ -138,7 +139,7 @@ const server = http.createServer(async (req, res) => {
         });
     } else {
         res.writeHead(200, { "Content-Type": "text/plain" });
-        res.end("Baran Micro-SaaS Base Engine is active (3-DEX Mode)!\n");
+        res.end("Baran Micro-SaaS Base Engine is active (3-DEX Channel Mode)!\n");
     }
 });
 
@@ -208,9 +209,12 @@ async function scanMarketOpportunities(isManualTrigger = false, manualChatId = n
                         `💰 *Gross Spread:* ${ethers.formatUnits(grossProfit, token.decimals)} ${token.name}\n` +
                         `⛽ *Gas Cost:* ${ethers.formatUnits(gasCostInToken, token.decimals)} ${token.name}\n` +
                         `✨ *Net Profit:* \`${ethers.formatUnits(netProfit, token.decimals)} ${token.name}\`\n` +
-                        `🌐 *Block:* ${currentBlock}`;
+                        `🌐 *Block:* ${currentBlock}\n\n` +
+                        `💡 *Want private instant alerts & VIP routing?* Type /subscribe to join.`;
 
                     console.log(alertText);
+                    // إرسال الإشارة إلى القناة العامة وإلى حساب الإدارة
+                    await sendTelegramMessage(CHANNEL_ID, alertText);
                     await sendTelegramMessage(ADMIN_CHAT_ID, alertText);
                 }
             } catch (errToken) {}
