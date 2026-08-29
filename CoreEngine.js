@@ -11,10 +11,14 @@ server.listen(PORT, () => {
 });
 
 const RPC_URL = process.env.RPC_URL || "https://api.avax.network/ext/bc/C/rpc";
-const TELEGRAM_BOT_TOKEN = "8750924124:AAGnVs_V4rfp_DwRrTxy9XVtA5_5RrXLrX0";
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = "589920599";
 
-console.log("Loaded Telegram Token Successfully. Prefix:", TELEGRAM_BOT_TOKEN.substring(0, 10) + "...");
+if (!TELEGRAM_BOT_TOKEN) {
+    console.error("CRITICAL ERROR: TELEGRAM_BOT_TOKEN is missing in environment variables!");
+} else {
+    console.log("Loaded Telegram Token Successfully. Prefix:", TELEGRAM_BOT_TOKEN.substring(0, 10) + "...");
+}
 
 const provider = new ethers.JsonRpcProvider(RPC_URL);
 
