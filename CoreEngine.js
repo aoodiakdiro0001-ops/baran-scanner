@@ -2,10 +2,16 @@ const { ethers } = require("ethers");
 const http = require("http");
 
 const PORT = process.env.PORT || 10000;
-const RPC_URL = process.env.RPC_URL || "https://mainnet.base.org";
+const RPC_URLS = [
+    process.env.RPC_URL || "https://mainnet.base.org",
+    "https://base.llamarpc.com",
+    "https://1rpc.io/base"
+];
+let rpcIndex = 0;
+
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ? process.env.TELEGRAM_BOT_TOKEN.trim() : "";
 const RENDER_EXTERNAL_URL = "https://baran-scanner.onrender.com";
-const ADMIN_CHAT_ID = "589920599"; // سيظهر لك رقمك الحقيقي فور مراسلة البوت لاستبداله هنا
+const ADMIN_CHAT_ID = "589920599";
 
 if (!TELEGRAM_BOT_TOKEN) {
     console.error("CRITICAL ERROR: TELEGRAM_BOT_TOKEN is missing in environment variables!");
@@ -13,7 +19,17 @@ if (!TELEGRAM_BOT_TOKEN) {
     console.log("Loaded Telegram Token Successfully. Prefix:", TELEGRAM_BOT_TOKEN.substring(0, 10) + "...");
 }
 
-const provider = new ethers.JsonRpcProvider(RPC_URL);
+function getProvider() {
+    return new ethers.JsonRpcProvider(RPC_URLS[rpcIndex]);
+}
+
+let provider = getProvider();
+
+function rotateRpc() {
+    rpcIndex = (rpcIndex + 1) % RPC_URLS.length;
+    provider = new ethers.JsonRpcProvider(RPC_URLS[rpcIndex]);
+    console.log(`Switched to fallback RPC endpoint index ${rpcIndex}: ${RPC_URLS[rpcIndex]}`);
+}
 
 const ROUTER_BASESWAP = "0x327Df1Ede4564DDf2Bf58fD50C4f6Facd6557cd8";
 const ROUTER_ALIENBASE = "0x16345EA9518e3881477F5C7C3E29EB3e717D5c7d";
@@ -59,7 +75,7 @@ async function setupTelegramWebhook() {
     if (!TELEGRAM_BOT_TOKEN) return;
     try {
         const webhookUrl = `${RENDER_EXTERNAL_URL}/telegram-webhook`;
-        const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook?url=${encodeURIComponent(webhookUrl)}`;
+        const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook?url=${encodeURIComponent(webhookUrl)}&drop_pending_updates=true`;
         const res = await fetch(url);
         const data = await res.json();
         console.log("Webhook setup response:", data);
@@ -85,6 +101,7 @@ async function handleTelegramUpdate(update) {
                 `- State: Live & Secured (Webhook Mode)\n` +
                 `- Last Block: ${lastScannedBlock}\n` +
                 `- Total Scans: ${totalScansCount}\n` +
+                `- Active RPC: ${RPC_URLS[rpcIndex]}\n` +
                 `- Capital Profile: Micro ($11 Base Optimized)`;
             await sendTelegramMessage(chatId, statusMsg);
         } else if (text === "/scan") {
@@ -117,7 +134,7 @@ const server = http.createServer(async (req, res) => {
             res.end(JSON.stringify({ status: 'ok' }));
         });
     } else {
-        res.writeHead(200, { "Content-Type": "text/plain"  });
+        res.writeHead(200, { "Content-Type": "text/plain" });
         res.end("Baran Micro-SaaS Base Engine is active (Webhook Mode)!\n");
     }
 });
@@ -209,8 +226,17 @@ async function scanMarketOpportunities(isManualTrigger = false, manualChatId = n
 
     } catch (error) {
         console.error("Scanner Loop Error:", error.message);
+        rotateRpc();
     }
 }
 
 console.log("Baran Command Center & Micro-SaaS Engine Initializing (Webhook Architecture)...");
-setInterval(() => scanMarketOpportunities(false), 4000);
+const scannerInterval = setInterval(() => scanMarketOpportunities(false), 4000);
+
+process.on('SIGTERM', () => {
+    clearInterval(scannerInterval);
+    server.close(() => {
+        console.log("Server terminated gracefully.");
+        process.exit(0);
+    });
+});
