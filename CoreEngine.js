@@ -11,7 +11,8 @@ server.listen(PORT, () => {
 });
 
 const RPC_URL = process.env.RPC_URL || "https://api.avax.network/ext/bc/C/rpc";
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+// استخدام trim() لحذف أي مسافات أو أسطر جديدة زائدة بالخطأ
+const TELEGRAM_BOT_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || "").trim();
 const TELEGRAM_CHAT_ID = "589920599";
 
 if (!TELEGRAM_BOT_TOKEN) {
@@ -149,7 +150,7 @@ async function scanMarketOpportunities(isManualTrigger = false, manualChatId = n
                 `- Current Block: ${currentBlock}\n` +
                 `- Total Scans: ${totalScansCount}\n` +
                 `- Status: Engine is fully operational and scanning parallel pairs successfully.`;
-            await sendTelegramMessage(manualChatId, reportText);
+            await sendTelegramMessage(manualChatId, reportTest);
         } else {
             console.log(`Scanning block ${currentBlock} across all target pairs... Engine operating smoothly.`);
         }
