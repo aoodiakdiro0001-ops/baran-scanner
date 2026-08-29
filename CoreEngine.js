@@ -11,8 +11,10 @@ server.listen(PORT, () => {
 });
 
 const RPC_URL = process.env.RPC_URL || "https://api.avax.network/ext/bc/C/rpc";
-const TELEGRAM_BOT_TOKEN = "8750924124:AAHMDF2K4V2vATt0THI4m8LNykFwWsVmlo";
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "8750924124:AAHMDF2K4V2vATt0THI4m8LNykFwWsVmlo";
 const TELEGRAM_CHAT_ID = "589920599";
+
+console.log("Active Telegram Token Prefix:", TELEGRAM_BOT_TOKEN.substring(0, 12) + "...");
 
 const provider = new ethers.JsonRpcProvider(RPC_URL);
 
