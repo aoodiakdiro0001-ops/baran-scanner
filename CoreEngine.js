@@ -1,4 +1,4 @@
-٣const { ethers } = require("ethers");
+const { ethers } = require("ethers");
 const http = require("http");
 
 // خادم HTTP مصغر لتلبية متطلبات منصة Render
