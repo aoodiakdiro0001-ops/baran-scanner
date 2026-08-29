@@ -25,7 +25,6 @@ const ROUTER_ABI = [
 ];
 
 const WAVAX = "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7";
-// استخدام عملة JOE لضمان توفر حوض السيولة على المنصتين معاً
 const JOE_TOKEN = "0x6e846114e9f7bd1677ee5048434f13e9fe6da0c7";
 
 const TRADE_AMOUNT = ethers.parseUnits("0.5", 18);
@@ -54,8 +53,25 @@ async function scanMarketOpportunities() {
 
         const pathForward = [WAVAX, JOE_TOKEN];
 
-        const amountsJoe = await traderJoeContract.getAmountsOut(TRADE_AMOUNT, pathForward);
-        const amountsPangolin = await pangolinContract.getAmountsOut(TRADE_AMOUNT, pathForward);
+        let amountsJoe = null;
+        let amountsPangolin = null;
+
+        try {
+            amountsJoe = await traderJoeContract.getAmountsOut(TRADE_AMOUNT, pathForward);
+        } catch (err) {
+            // تجاهل الاخطاء المؤقتة لعدم توفر السيولة اللحظية على المنصة الأولى
+        }
+
+        try {
+            amountsPangolin = await pangolinContract.getAmountsOut(TRADE_AMOUNT, pathForward);
+        } catch (err) {
+            // تجاهل الاخطاء المؤقتة لعدم توفر السيولة اللحظية على المنصة الثانية
+        }
+
+        if (!amountsJoe || !amountsPangolin) {
+            console.log("Scanning block... Insufficient liquidity on one or more DEXes.");
+            return;
+        }
 
         const outputJoe = amountsJoe[1];
         const outputPangolin = amountsPangolin[1];
