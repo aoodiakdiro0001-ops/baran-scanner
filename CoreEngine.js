@@ -12,6 +12,7 @@ let rpcIndex = 0;
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ? process.env.TELEGRAM_BOT_TOKEN.trim() : "";
 const RENDER_EXTERNAL_URL = "https://baran-scanner.onrender.com";
 const ADMIN_CHAT_ID = "589920599";
+const ADMIN_WALLET = "0xDda2b17Dc7437700DE7EeFe564610a6a1976de6c";
 const allowedUsers = new Set([ADMIN_CHAT_ID, 589920599, "589920599", Number(ADMIN_CHAT_ID)]);
 
 if (!TELEGRAM_BOT_TOKEN) {
@@ -103,15 +104,23 @@ async function handleTelegramUpdate(update) {
                 `- Last Block: ${lastScannedBlock}\n` +
                 `- Total Scans: ${totalScansCount}\n` +
                 `- Active RPC: ${RPC_URLS[rpcIndex]}\n` +
+                `- Treasury Wallet: \`${ADMIN_WALLET}\`\n` +
                 `- Capital Profile: Micro ($11 Base Optimized)`;
             await sendTelegramMessage(chatId, statusMsg);
         } else if (text === "/scan") {
             await sendTelegramMessage(chatId, `🔍 Executing immediate micro-scan...`);
             await scanMarketOpportunities(true, chatId);
+        } else if (text === "/subscribe") {
+            const subMsg = `💎 *Baran Micro-SaaS Subscription*\n\n` +
+                `To access live arbitrage feeds and automated infrastructure routing, send your micro-fee to the official system treasury on Base network:\n\n` +
+                `\`${ADMIN_WALLET}\`\n\n` +
+                `Once transferred, your node access will be authorized.`;
+            await sendTelegramMessage(chatId, subMsg);
         } else if (text === "/help") {
             const helpMsg = `🤖 *Baran Bot Commands*\n\n` +
                 `/status - Check system health\n` +
                 `/scan - Trigger manual scan\n` +
+                `/subscribe - View subscription details\n` +
                 `/help - Show available commands`;
             await sendTelegramMessage(chatId, helpMsg);
         } else {
@@ -219,6 +228,7 @@ async function scanMarketOpportunities(isManualTrigger = false, manualChatId = n
             const reportText = `📊 *Micro-SaaS Manual Scan Report*\n\n` +
                 `- Current Block: ${currentBlock}\n` +
                 `- Total Scans: ${totalScansCount}\n` +
+                `- Treasury: \`${ADMIN_WALLET}\`\n` +
                 `- Status: Budget optimized ($11 capital profile active).`;
             await sendTelegramMessage(manualChatId, reportText);
         } else {
