@@ -4,15 +4,14 @@ const http = require("http");
 const PORT = process.env.PORT || 10000;
 const server = http.createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "text/plain" });
-    res.end("Baran Command Center & Multi-Pair Engine is active!\n");
+    res.end("Baran Command Center & Base Multi-Pair Engine is active!\n");
 });
 server.listen(PORT, () => {
     console.log(`HTTP server is listening on port ${PORT}`);
 });
 
-const RPC_URL = process.env.RPC_URL || "https://api.avax.network/ext/bc/C/rpc";
-// استخدام trim() لحذف أي مسافات أو أسطر جديدة زائدة بالخطأ
-const TELEGRAM_BOT_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || "").trim();
+const RPC_URL = process.env.RPC_URL || "https://mainnet.base.org";
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ? process.env.TELEGRAM_BOT_TOKEN.trim() : "";
 const TELEGRAM_CHAT_ID = "589920599";
 
 if (!TELEGRAM_BOT_TOKEN) {
@@ -23,23 +22,23 @@ if (!TELEGRAM_BOT_TOKEN) {
 
 const provider = new ethers.JsonRpcProvider(RPC_URL);
 
-const ROUTER_TRADER_JOE = "0x60ae616a2155ee3d9a68541ba4544862310933d4";
-const ROUTER_PANGOLIN = "0xe54ca86531e17ef3616d22ca28b0d458b6c81616";
+const ROUTER_BASESWAP = "0x327Df1Ede4564DDf2Bf58fD50C4f6Facd6557cd8";
+const ROUTER_ALIENBASE = "0x16345EA9518e3881477F5C7C3E29EB3e717D5c7d";
 
 const ROUTER_ABI = [
     "function getAmountsOut(uint amountIn, address[] memory path) public view returns (uint[] memory amounts)"
 ];
 
-const WAVAX = "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7";
+const WETH = "0x4200000000000000000000000000000000000006";
 
 const TARGET_TOKENS = [
-    { name: "USDT", address: "0x9702230a8ea53601f5cd2dc00fdbc13d4d4a84fd", decimals: 6 },
-    { name: "USDC.e", address: "0xa7d7079b0fead9163e65000e819f6db45a0f87c4", decimals: 6 },
-    { name: "JOE", address: "0x6e846114e9f7bd1677ee5048434f13e9fe6da0c7", decimals: 18 }
+    { name: "USDC", address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", decimals: 6 },
+    { name: "DEGEN", address: "0x4ed4E862860b21aae1d87fb1d459dc28f1e7bc8c", decimals: 18 },
+    { name: "CBETH", address: "0x2Ae3F1Ec7F1F5012CFEab0185bfc7aa3cf0DEc22", decimals: 18 }
 ];
 
-const TRADE_AMOUNT = ethers.parseUnits("1.0", 18);
-const ESTIMATED_GAS_UNITS = 250000n;
+const TRADE_AMOUNT = ethers.parseUnits("0.05", 18);
+const ESTIMATED_GAS_UNITS = 180000n;
 
 let lastScannedBlock = 0;
 let totalScansCount = 0;
@@ -81,58 +80,58 @@ async function scanMarketOpportunities(isManualTrigger = false, manualChatId = n
         const currentBlock = await provider.getBlockNumber();
         lastScannedBlock = currentBlock;
 
-        const traderJoeContract = new ethers.Contract(ROUTER_TRADER_JOE, ROUTER_ABI, provider);
-        const pangolinContract = new ethers.Contract(ROUTER_PANGOLIN, ROUTER_ABI, provider);
+        const baseSwapContract = new ethers.Contract(ROUTER_BASESWAP, ROUTER_ABI, provider);
+        const alienBaseContract = new ethers.Contract(ROUTER_ALIENBASE, ROUTER_ABI, provider);
 
         const feeData = await provider.getFeeData();
-        const gasPrice = feeData.gasPrice || feeData.maxFeePerGas || ethers.parseUnits("25", 9);
-        const gasCostInAvax = gasPrice * ESTIMATED_GAS_UNITS;
+        const gasPrice = feeData.gasPrice || feeData.maxFeePerGas || ethers.parseUnits("0.01", 9);
+        const gasCostInWeth = gasPrice * ESTIMATED_GAS_UNITS;
 
         for (const token of TARGET_TOKENS) {
             try {
-                const pathForward = [WAVAX, token.address];
+                const pathForward = [WETH, token.address];
 
-                let amountsJoe = null;
-                let amountsPangolin = null;
+                let amountsBaseSwap = null;
+                let amountsAlienBase = null;
 
                 try {
-                    amountsJoe = await traderJoeContract.getAmountsOut(TRADE_AMOUNT, pathForward);
+                    amountsBaseSwap = await baseSwapContract.getAmountsOut(TRADE_AMOUNT, pathForward);
                 } catch (e) {}
 
                 try {
-                    amountsPangolin = await pangolinContract.getAmountsOut(TRADE_AMOUNT, pathForward);
+                    amountsAlienBase = await alienBaseContract.getAmountsOut(TRADE_AMOUNT, pathForward);
                 } catch (e) {}
 
-                if (!amountsJoe || !amountsPangolin) continue;
+                if (!amountsBaseSwap || !amountsAlienBase) continue;
 
-                const outputJoe = amountsJoe[1];
-                const outputPangolin = amountsPangolin[1];
+                const outputBaseSwap = amountsBaseSwap[1];
+                const outputAlienBase = amountsAlienBase[1];
 
                 let grossProfit = 0n;
                 let executionRoute = "";
 
-                if (outputJoe > outputPangolin) {
-                    grossProfit = outputJoe - outputPangolin;
-                    executionRoute = "Buy on Pangolin ➔ Sell on Trader Joe";
+                if (outputBaseSwap > outputAlienBase) {
+                    grossProfit = outputBaseSwap - outputAlienBase;
+                    executionRoute = "Buy on AlienBase ➔ Sell on BaseSwap";
                 } else {
-                    grossProfit = outputPangolin - outputJoe;
-                    executionRoute = "Buy on Trader Joe ➔ Sell on Pangolin";
+                    grossProfit = outputAlienBase - outputBaseSwap;
+                    executionRoute = "Buy on BaseSwap ➔ Sell on AlienBase";
                 }
 
-                let wavaxToTokenRate = ethers.parseUnits("25", token.decimals);
+                let wethToTokenRate = ethers.parseUnits("1", token.decimals);
                 try {
-                    const rateAmounts = await traderJoeContract.getAmountsOut(ethers.parseUnits("1.0", 18), pathForward);
-                    wavaxToTokenRate = rateAmounts[1];
+                    const rateAmounts = await baseSwapContract.getAmountsOut(ethers.parseUnits("1.0", 18), pathForward);
+                    wethToTokenRate = rateAmounts[1];
                 } catch (e) {}
 
-                const gasCostInToken = (gasCostInAvax * wavaxToTokenRate) / ethers.parseUnits("1.0", 18);
+                const gasCostInToken = (gasCostInWeth * wethToTokenRate) / ethers.parseUnits("1.0", 18);
                 const netProfit = grossProfit - gasCostInToken;
 
-                const minNetProfitThreshold = token.name === "JOE" ? ethers.parseUnits("0.1", token.decimals) : ethers.parseUnits("0.02", token.decimals);
+                const minNetProfitThreshold = token.name === "USDC" ? ethers.parseUnits("0.01", token.decimals) : ethers.parseUnits("1.0", token.decimals);
 
                 if (netProfit > minNetProfitThreshold) {
                     const alertText =
-                        `🚀 *Baran Arbitrage Signal (${token.name})!*\n\n` +
+                        `🚀 *Baran Base Arbitrage Signal (${token.name})!*\n\n` +
                         `📍 *Route:* ${executionRoute}\n` +
                         `💰 *Gross Spread:* ${ethers.formatUnits(grossProfit, token.decimals)} ${token.name}\n` +
                         `⛽ *Gas Cost:* ${ethers.formatUnits(gasCostInToken, token.decimals)} ${token.name}\n` +
@@ -146,13 +145,13 @@ async function scanMarketOpportunities(isManualTrigger = false, manualChatId = n
         }
 
         if (isManualTrigger && manualChatId) {
-            const reportText = `📊 *Manual Scan Report*\n\n` +
+            const reportText = `📊 *Base Manual Scan Report*\n\n` +
                 `- Current Block: ${currentBlock}\n` +
                 `- Total Scans: ${totalScansCount}\n` +
-                `- Status: Engine is fully operational and scanning parallel pairs successfully.`;
-            await sendTelegramMessage(manualChatId, reportTest);
+                `- Status: Base Engine is fully operational and scanning multi-pairs with near-zero gas.`;
+            await sendTelegramMessage(manualChatId, reportText);
         } else {
-            console.log(`Scanning block ${currentBlock} across all target pairs... Engine operating smoothly.`);
+            console.log(`Scanning block ${currentBlock} across Base target pairs... Engine operating smoothly.`);
         }
 
     } catch (error) {
@@ -182,14 +181,14 @@ async function pollTelegramCommands() {
                     console.log(`Received command from chat ${chatId}: ${text}`);
 
                     if (text === "/status") {
-                        const statusMsg = `🟢 *Baran Engine Status*\n\n` +
-                            `- State: Live & Active\n` +
+                        const statusMsg = `🟢 *Baran Base Engine Status*\n\n` +
+                            `- State: Live & Active (Base Network)\n` +
                             `- Last Block: ${lastScannedBlock}\n` +
                             `- Total Scans: ${totalScansCount}\n` +
-                            `- Active Pairs: USDT, USDC.e, JOE`;
+                            `- Active Pairs: USDC, DEGEN, CBETH`;
                         await sendTelegramMessage(chatId, statusMsg);
                     } else if (text === "/scan") {
-                        await sendTelegramMessage(chatId, `🔍 Executing immediate manual market scan...`);
+                        await sendTelegramMessage(chatId, `🔍 Executing immediate Base market scan...`);
                         await scanMarketOpportunities(true, chatId);
                     } else if (text === "/help") {
                         const helpMsg = `🤖 *Baran Bot Commands*\n\n` +
@@ -208,7 +207,7 @@ async function pollTelegramCommands() {
     }
 }
 
-console.log("Baran Command Center & Multi-Pair Engine Initializing...");
+console.log("Baran Command Center & Base Multi-Pair Engine Initializing...");
 clearTelegramWebhook().then(() => {
     setInterval(() => scanMarketOpportunities(false), 4000);
     setInterval(pollTelegramCommands, 3000);
