@@ -1,12 +1,10 @@
 const { ethers } = require("ethers");
 
 const RPC_URL = process.env.RPC_URL || "https://api.avax.network/ext/bc/C/rpc";
-const PRIVATE_KEY = process.env.PRIVATE_KEY || "0x0000000000000000000000000000000000000000000000000000000000000000";
 const TELEGRAM_BOT_TOKEN = "8750924124:AAHMXaJlzI8iHLSzdrDmWjYJNE6wDaH072M";
 const TELEGRAM_CHAT_ID = "589920599";
 
 const provider = new ethers.JsonRpcProvider(RPC_URL);
-const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
 
 const ROUTER_TRADER_JOE = "0x60aE616a2155Ee3d9A68541Ba4544862310933d4";
 const ROUTER_PANGOLIN = "0xE54Ca86531e17ef3616d22Ca28b0D458b6C81616";
