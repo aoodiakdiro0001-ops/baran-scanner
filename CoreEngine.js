@@ -4,7 +4,7 @@ const http = require("http");
 const PORT = process.env.PORT || 10000;
 const server = http.createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "text/plain" });
-    res.end("Baran Command Center & Base Multi-Pair Engine is active!\n");
+    res.end("Baran Micro-SaaS Base Engine is active!\n");
 });
 server.listen(PORT, () => {
     console.log(`HTTP server is listening on port ${PORT}`);
@@ -12,7 +12,7 @@ server.listen(PORT, () => {
 
 const RPC_URL = process.env.RPC_URL || "https://mainnet.base.org";
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ? process.env.TELEGRAM_BOT_TOKEN.trim() : "";
-const TELEGRAM_CHAT_ID = "589920599";
+const ADMIN_CHAT_ID = "589920599";
 
 if (!TELEGRAM_BOT_TOKEN) {
     console.error("CRITICAL ERROR: TELEGRAM_BOT_TOKEN is missing in environment variables!");
@@ -37,12 +37,13 @@ const TARGET_TOKENS = [
     { name: "CBETH", address: "0x2Ae3F1Ec7F1F5012CFEab0185bfc7aa3cf0DEc22", decimals: 18 }
 ];
 
-const TRADE_AMOUNT = ethers.parseUnits("0.05", 18);
+const TRADE_AMOUNT = ethers.parseUnits("0.001", 18);
 const ESTIMATED_GAS_UNITS = 180000n;
 
 let lastScannedBlock = 0;
 let totalScansCount = 0;
 let telegramOffset = 0;
+const allowedUsers = new Set([ADMIN_CHAT_ID]);
 
 async function sendTelegramMessage(chatId, message) {
     if (!TELEGRAM_BOT_TOKEN) return;
@@ -127,11 +128,11 @@ async function scanMarketOpportunities(isManualTrigger = false, manualChatId = n
                 const gasCostInToken = (gasCostInWeth * wethToTokenRate) / ethers.parseUnits("1.0", 18);
                 const netProfit = grossProfit - gasCostInToken;
 
-                const minNetProfitThreshold = token.name === "USDC" ? ethers.parseUnits("0.01", token.decimals) : ethers.parseUnits("1.0", token.decimals);
+                const minNetProfitThreshold = token.name === "USDC" ? ethers.parseUnits("0.005", token.decimals) : ethers.parseUnits("0.1", token.decimals);
 
                 if (netProfit > minNetProfitThreshold) {
                     const alertText =
-                        `🚀 *Baran Base Arbitrage Signal (${token.name})!*\n\n` +
+                        `🚀 *Baran Micro-Arbitrage Signal (${token.name})!*\n\n` +
                         `📍 *Route:* ${executionRoute}\n` +
                         `💰 *Gross Spread:* ${ethers.formatUnits(grossProfit, token.decimals)} ${token.name}\n` +
                         `⛽ *Gas Cost:* ${ethers.formatUnits(gasCostInToken, token.decimals)} ${token.name}\n` +
@@ -139,19 +140,19 @@ async function scanMarketOpportunities(isManualTrigger = false, manualChatId = n
                         `🌐 *Block:* ${currentBlock}`;
 
                     console.log(alertText);
-                    await sendTelegramMessage(TELEGRAM_CHAT_ID, alertText);
+                    await sendTelegramMessage(ADMIN_CHAT_ID, alertText);
                 }
             } catch (errToken) {}
         }
 
         if (isManualTrigger && manualChatId) {
-            const reportText = `📊 *Base Manual Scan Report*\n\n` +
+            const reportText = `📊 *Micro-SaaS Manual Scan Report*\n\n` +
                 `- Current Block: ${currentBlock}\n` +
                 `- Total Scans: ${totalScansCount}\n` +
-                `- Status: Base Engine is fully operational and scanning multi-pairs with near-zero gas.`;
+                `- Status: Budget optimized ($11 capital profile active).`;
             await sendTelegramMessage(manualChatId, reportText);
         } else {
-            console.log(`Scanning block ${currentBlock} across Base target pairs... Engine operating smoothly.`);
+            console.log(`Scanning block ${currentBlock} with optimized micro-budget... Engine operating smoothly.`);
         }
 
     } catch (error) {
@@ -178,22 +179,28 @@ async function pollTelegramCommands() {
                 if (update.message && update.message.text) {
                     const chatId = update.message.chat.id;
                     const text = update.message.text.trim();
-                    console.log(`Received command from chat ${chatId}: ${text}`);
+                    const chatIdStr = chatId.toString();
+                    console.log(`Received command from chat ${chatIdStr}: ${text}`);
+
+                    if (!allowedUsers.has(chatIdStr)) {
+                        await sendTelegramMessage(chatId, `🔒 *Access Denied:* This is a private infrastructure tool.`);
+                        continue;
+                    }
 
                     if (text === "/status") {
-                        const statusMsg = `🟢 *Baran Base Engine Status*\n\n` +
-                            `- State: Live & Active (Base Network)\n` +
+                        const statusMsg = `🟢 *Baran Micro-SaaS Status*\n\n` +
+                            `- State: Live & Secured\n` +
                             `- Last Block: ${lastScannedBlock}\n` +
                             `- Total Scans: ${totalScansCount}\n` +
-                            `- Active Pairs: USDC, DEGEN, CBETH`;
+                            `- Capital Profile: Micro ($11 Base Optimized)`;
                         await sendTelegramMessage(chatId, statusMsg);
                     } else if (text === "/scan") {
-                        await sendTelegramMessage(chatId, `🔍 Executing immediate Base market scan...`);
+                        await sendTelegramMessage(chatId, `🔍 Executing immediate micro-scan...`);
                         await scanMarketOpportunities(true, chatId);
                     } else if (text === "/help") {
                         const helpMsg = `🤖 *Baran Bot Commands*\n\n` +
-                            `/status - Check system health and stats\n` +
-                            `/scan - Trigger manual market scan\n` +
+                            `/status - Check system health\n` +
+                            `/scan - Trigger manual scan\n` +
                             `/help - Show available commands`;
                         await sendTelegramMessage(chatId, helpMsg);
                     } else {
@@ -207,7 +214,7 @@ async function pollTelegramCommands() {
     }
 }
 
-console.log("Baran Command Center & Base Multi-Pair Engine Initializing...");
+console.log("Baran Command Center & Micro-SaaS Engine Initializing...");
 clearTelegramWebhook().then(() => {
     setInterval(() => scanMarketOpportunities(false), 4000);
     setInterval(pollTelegramCommands, 3000);
