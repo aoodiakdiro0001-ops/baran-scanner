@@ -1,4 +1,15 @@
 const { ethers } = require("ethers");
+const http = require("http");
+
+// إنشاء خادم HTTP مصغر لتلبية متطلبات منصة Render ومنع خطأ الـ Timeout
+const PORT = process.env.PORT || 10000;
+const server = http.createServer((req, res) => {
+    res.writeHead(200, { "Content-Type": "text/plain" });
+    res.end("Baran Scanner is active and running!\n");
+});
+server.listen(PORT, () => {
+    console.log(`HTTP server is listening on port ${PORT}`);
+});
 
 const RPC_URL = process.env.RPC_URL || "https://api.avax.network/ext/bc/C/rpc";
 const TELEGRAM_BOT_TOKEN = "8750924124:AAHMXaJlzI8iHLSzdrDmWjYJNE6wDaH072M";
