@@ -2,17 +2,10 @@ const { ethers } = require("ethers");
 const http = require("http");
 
 const PORT = process.env.PORT || 10000;
-const server = http.createServer((req, res) => {
-    res.writeHead(200, { "Content-Type": "text/plain" });
-    res.end("Baran Micro-SaaS Base Engine is active!\n");
-});
-server.listen(PORT, () => {
-    console.log(`HTTP server is listening on port ${PORT}`);
-});
-
 const RPC_URL = process.env.RPC_URL || "https://mainnet.base.org";
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ? process.env.TELEGRAM_BOT_TOKEN.trim() : "";
-const ADMIN_CHAT_ID = "589920599";
+const RENDER_EXTERNAL_URL = "https://baran-scanner.onrender.com";
+const ADMIN_CHAT_ID = "589920599"; // سيظهر لك رقمك الحقيقي فور مراسلة البوت لاستبداله هنا
 
 if (!TELEGRAM_BOT_TOKEN) {
     console.error("CRITICAL ERROR: TELEGRAM_BOT_TOKEN is missing in environment variables!");
@@ -42,7 +35,6 @@ const ESTIMATED_GAS_UNITS = 180000n;
 
 let lastScannedBlock = 0;
 let totalScansCount = 0;
-let telegramOffset = 0;
 const allowedUsers = new Set([ADMIN_CHAT_ID]);
 
 async function sendTelegramMessage(chatId, message) {
@@ -63,17 +55,77 @@ async function sendTelegramMessage(chatId, message) {
     }
 }
 
-async function clearTelegramWebhook() {
+async function setupTelegramWebhook() {
     if (!TELEGRAM_BOT_TOKEN) return;
     try {
-        const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/deleteWebhook?drop_pending_updates=true`;
+        const webhookUrl = `${RENDER_EXTERNAL_URL}/telegram-webhook`;
+        const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook?url=${encodeURIComponent(webhookUrl)}`;
         const res = await fetch(url);
         const data = await res.json();
-        console.log("Webhook cleared response:", data);
+        console.log("Webhook setup response:", data);
     } catch (err) {
-        console.error("Failed to clear webhook:", err.message);
+        console.error("Failed to setup webhook:", err.message);
     }
 }
+
+async function handleTelegramUpdate(update) {
+    if (update.message && update.message.text) {
+        const chatId = update.message.chat.id;
+        const text = update.message.text.trim();
+        const chatIdStr = chatId.toString();
+        console.log(`Received command from chat ${chatIdStr}: ${text}`);
+
+        if (!allowedUsers.has(chatIdStr)) {
+            await sendTelegramMessage(chatId, `🔒 *Access Denied*\nYour Telegram Chat ID is: \`${chatIdStr}\`\nUpdate ADMIN_CHAT_ID in your code with this number.`);
+            return;
+        }
+
+        if (text === "/status") {
+            const statusMsg = `🟢 *Baran Micro-SaaS Status*\n\n` +
+                `- State: Live & Secured (Webhook Mode)\n` +
+                `- Last Block: ${lastScannedBlock}\n` +
+                `- Total Scans: ${totalScansCount}\n` +
+                `- Capital Profile: Micro ($11 Base Optimized)`;
+            await sendTelegramMessage(chatId, statusMsg);
+        } else if (text === "/scan") {
+            await sendTelegramMessage(chatId, `🔍 Executing immediate micro-scan...`);
+            await scanMarketOpportunities(true, chatId);
+        } else if (text === "/help") {
+            const helpMsg = `🤖 *Baran Bot Commands*\n\n` +
+                `/status - Check system health\n` +
+                `/scan - Trigger manual scan\n` +
+                `/help - Show available commands`;
+            await sendTelegramMessage(chatId, helpMsg);
+        } else {
+            await sendTelegramMessage(chatId, `❓ Unknown command. Use /help to see available commands.`);
+        }
+    }
+}
+
+const server = http.createServer(async (req, res) => {
+    if (req.method === 'POST' && req.url === '/telegram-webhook') {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', async () => {
+            try {
+                const update = JSON.parse(body);
+                await handleTelegramUpdate(update);
+            } catch (e) {
+                console.error('Error parsing webhook body:', e);
+            }
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ status: 'ok' }));
+        });
+    } else {
+        res.writeHead(200, { "Content-Type": "text/plain"  });
+        res.end("Baran Micro-SaaS Base Engine is active (Webhook Mode)!\n");
+    }
+});
+
+server.listen(PORT, () => {
+    console.log(`HTTP server is listening on port ${PORT}`);
+    setupTelegramWebhook();
+});
 
 async function scanMarketOpportunities(isManualTrigger = false, manualChatId = null) {
     try {
@@ -160,62 +212,5 @@ async function scanMarketOpportunities(isManualTrigger = false, manualChatId = n
     }
 }
 
-async function pollTelegramCommands() {
-    if (!TELEGRAM_BOT_TOKEN) return;
-    try {
-        const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getUpdates?offset=${telegramOffset}&timeout=2`;
-        const response = await fetch(url);
-        const data = await response.json();
-
-        if (!data.ok) {
-            console.error("Telegram Polling Error Response:", data);
-            return;
-        }
-
-        if (data.result && data.result.length > 0) {
-            for (const update of data.result) {
-                telegramOffset = update.update_id + 1;
-
-                if (update.message && update.message.text) {
-                    const chatId = update.message.chat.id;
-                    const text = update.message.text.trim();
-                    const chatIdStr = chatId.toString();
-                    console.log(`Received command from chat ${chatIdStr}: ${text}`);
-
-                    if (!allowedUsers.has(chatIdStr)) {
-                        await sendTelegramMessage(chatId, `🔒 *Access Denied*\nYour Telegram Chat ID is: \`${chatIdStr}\`\nUpdate ADMIN_CHAT_ID in your code with this number.`);
-                        continue;
-                    }
-
-                    if (text === "/status") {
-                        const statusMsg = `🟢 *Baran Micro-SaaS Status*\n\n` +
-                            `- State: Live & Secured\n` +
-                            `- Last Block: ${lastScannedBlock}\n` +
-                            `- Total Scans: ${totalScansCount}\n` +
-                            `- Capital Profile: Micro ($11 Base Optimized)`;
-                        await sendTelegramMessage(chatId, statusMsg);
-                    } else if (text === "/scan") {
-                        await sendTelegramMessage(chatId, `🔍 Executing immediate micro-scan...`);
-                        await scanMarketOpportunities(true, chatId);
-                    } else if (text === "/help") {
-                        const helpMsg = `🤖 *Baran Bot Commands*\n\n` +
-                            `/status - Check system health\n` +
-                            `/scan - Trigger manual scan\n` +
-                            `/help - Show available commands`;
-                        await sendTelegramMessage(chatId, helpMsg);
-                    } else {
-                        await sendTelegramMessage(chatId, `❓ Unknown command. Use /help to see available commands.`);
-                    }
-                }
-            }
-        }
-    } catch (err) {
-        console.error("Poll Exception:", err.message);
-    }
-}
-
-console.log("Baran Command Center & Micro-SaaS Engine Initializing...");
-clearTelegramWebhook().then(() => {
-    setInterval(() => scanMarketOpportunities(false), 4000);
-    setInterval(pollTelegramCommands, 3000);
-});
+console.log("Baran Command Center & Micro-SaaS Engine Initializing (Webhook Architecture)...");
+setInterval(() => scanMarketOpportunities(false), 4000);
