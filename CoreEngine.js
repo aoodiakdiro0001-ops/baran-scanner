@@ -11,7 +11,7 @@ server.listen(PORT, () => {
 });
 
 const RPC_URL = process.env.RPC_URL || "https://api.avax.network/ext/bc/C/rpc";
-const TELEGRAM_BOT_TOKEN = "8750924124:AAHMXaJlzI8iHLSzdrDmWjYJNE6wDaH072M";
+const TELEGRAM_BOT_TOKEN = "8750924124:AAHMDF2K4V2vATt0THI4m8LNykFwWsVmlo";
 const TELEGRAM_CHAT_ID = "589920599";
 
 const provider = new ethers.JsonRpcProvider(RPC_URL);
