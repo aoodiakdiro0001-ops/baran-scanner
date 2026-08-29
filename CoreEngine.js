@@ -5,7 +5,7 @@ const http = require("http");
 const PORT = process.env.PORT || 10000;
 const server = http.createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "text/plain" });
-    res.end("Baran Multi-Pair Micro-Engine is active and running!\n");
+    res.end("Baran Command Center & Multi-Pair Engine is active!\n");
 });
 server.listen(PORT, () => {
     console.log(`HTTP server is listening on port ${PORT}`);
@@ -26,24 +26,27 @@ const ROUTER_ABI = [
 
 const WAVAX = "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7";
 
-// قائمة العملات المستهدفة للمسح المتوازي في نفس البلوك
 const TARGET_TOKENS = [
     { name: "USDT", address: "0x9702230a8ea53601f5cd2dc00fdbc13d4d4a84fd", decimals: 6 },
     { name: "USDC.e", address: "0xa7d7079b0fead9163e65000e819f6db45a0f87c4", decimals: 6 },
     { name: "JOE", address: "0x6e846114e9f7bd1677ee5048434f13e9fe6da0c7", decimals: 18 }
 ];
 
-const TRADE_AMOUNT = ethers.parseUnits("1.0", 18); // حجم التداول (1 AVAX)
+const TRADE_AMOUNT = ethers.parseUnits("1.0", 18);
 const ESTIMATED_GAS_UNITS = 250000n;
 
-async function sendTelegramAlert(message) {
+let lastScannedBlock = 0;
+let totalScansCount = 0;
+let telegramOffset = 0;
+
+async function sendTelegramMessage(chatId, message) {
     try {
         const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
         await fetch(url, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                chat_id: TELEGRAM_CHAT_ID,
+                chat_id: chatId,
                 text: message,
                 parse_mode: "Markdown"
             })
@@ -53,17 +56,21 @@ async function sendTelegramAlert(message) {
     }
 }
 
-async function scanMarketOpportunities() {
+async function scanMarketOpportunities(isManualTrigger = false, manualChatId = null) {
     try {
+        totalScansCount++;
+        const currentBlock = await provider.getBlockNumber();
+        lastScannedBlock = currentBlock;
+
         const traderJoeContract = new ethers.Contract(ROUTER_TRADER_JOE, ROUTER_ABI, provider);
         const pangolinContract = new ethers.Contract(ROUTER_PANGOLIN, ROUTER_ABI, provider);
 
-        // جلب تسعيرة الغاز مرة واحدة لكل بلوك
         const feeData = await provider.getFeeData();
         const gasPrice = feeData.gasPrice || feeData.maxFeePerGas || ethers.parseUnits("25", 9);
         const gasCostInAvax = gasPrice * ESTIMATED_GAS_UNITS;
 
-        // مسح كل العملات في القائمة بالتوازي
+        let foundOpportunity = false;
+
         for (const token of TARGET_TOKENS) {
             try {
                 const pathForward = [WAVAX, token.address];
@@ -95,7 +102,6 @@ async function scanMarketOpportunities() {
                     executionRoute = "Buy on Trader Joe ➔ Sell on Pangolin";
                 }
 
-                // حساب قيمة الغاز بالعملة الحالية
                 let wavaxToTokenRate = ethers.parseUnits("25", token.decimals);
                 try {
                     const rateAmounts = await traderJoeContract.getAmountsOut(ethers.parseUnits("1.0", 18), pathForward);
@@ -108,28 +114,75 @@ async function scanMarketOpportunities() {
                 const minNetProfitThreshold = token.name === "JOE" ? ethers.parseUnits("0.1", token.decimals) : ethers.parseUnits("0.02", token.decimals);
 
                 if (netProfit > minNetProfitThreshold) {
+                    foundOpportunity = true;
                     const alertText =
-                        `🚀 *Baran Multi-Pair Signal (${token.name})!*\n\n` +
+                        `🚀 *Baran Arbitrage Signal (${token.name})!*\n\n` +
                         `📍 *Route:* ${executionRoute}\n` +
                         `💰 *Gross Spread:* ${ethers.formatUnits(grossProfit, token.decimals)} ${token.name}\n` +
                         `⛽ *Gas Cost:* ${ethers.formatUnits(gasCostInToken, token.decimals)} ${token.name}\n` +
                         `✨ *Net Profit:* \`${ethers.formatUnits(netProfit, token.decimals)} ${token.name}\`\n` +
-                        `🌐 *Network:* Avalanche C-Chain`;
+                        `🌐 *Block:* ${currentBlock}`;
 
                     console.log(alertText);
-                    await sendTelegramAlert(alertText);
+                    await sendTelegramMessage(TELEGRAM_CHAT_ID, alertText);
                 }
-            } catch (errToken) {
-                // استمرار المسح للأزواج الأخرى في حال حدوث خطأ عابر في زوج معين
-            }
+            } catch (errToken) {}
         }
 
-        console.log("Scanning block across all target pairs... Engine operating smoothly.");
+        if (isManualTrigger && manualChatId) {
+            const reportText = `📊 *Manual Scan Report*\n\n` +
+                `- Current Block: ${currentBlock}\n` +
+                `- Total Scans: ${totalScansCount}\n` +
+                `- Status: Engine is fully operational and scanning parallel pairs successfully.`;
+            await sendTelegramMessage(manualChatId, reportText);
+        } else {
+            console.log(`Scanning block ${currentBlock} across all target pairs... Engine operating smoothly.`);
+        }
 
     } catch (error) {
         console.error("Scanner Loop Error:", error.message);
     }
 }
 
-console.log("Baran Multi-Pair Micro-Engine Activated. Parallel scanning enabled.");
-setInterval(scanMarketOpportunities, 4000);
+async function pollTelegramCommands() {
+    try {
+        const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getUpdates?offset=${telegramOffset}&timeout=5`;
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.ok && data.result.length > 0) {
+            for (const update of data.result) {
+                telegramOffset = update.update_id + 1;
+
+                if (update.message && update.message.text) {
+                    const chatId = update.message.chat.id;
+                    const text = update.message.text.trim();
+
+                    if (text === "/status") {
+                        const statusMsg = `🟢 *Baran Engine Status*\n\n` +
+                            `- State: Live & Active\n` +
+                            `- Last Block: ${lastScannedBlock}\n` +
+                            `- Total Scans: ${totalScansCount}\n` +
+                            `- Active Pairs: USDT, USDC.e, JOE`;
+                        await sendTelegramMessage(chatId, statusMsg);
+                    } else if (text === "/scan") {
+                        await sendTelegramMessage(chatId, `🔍 Executing immediate manual market scan...`);
+                        await scanMarketOpportunities(true, chatId);
+                    } else if (text === "/help") {
+                        const helpMsg = `🤖 *Baran Bot Commands*\n\n` +
+                            `/status - Check system health and stats\n` +
+                            `/scan - Trigger manual market scan\n` +
+                            `/help - Show available commands`;
+                        await sendTelegramMessage(chatId, helpMsg);
+                    }
+                }
+            }
+        }
+    } catch (err) {
+        // Silent catch for polling connection stability
+    }
+}
+
+console.log("Baran Command Center & Multi-Pair Engine Activated.");
+setInterval(() => scanMarketOpportunities(false), 4000);
+setInterval(pollTelegramCommands, 3000);
