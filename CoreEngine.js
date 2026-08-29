@@ -1,7 +1,6 @@
 const { ethers } = require("ethers");
 const http = require("http");
 
-// خادم HTTP مصغر لتلبية متطلبات منصة Render
 const PORT = process.env.PORT || 10000;
 const server = http.createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "text/plain" });
@@ -56,6 +55,17 @@ async function sendTelegramMessage(chatId, message) {
     }
 }
 
+async function clearTelegramWebhook() {
+    try {
+        const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/deleteWebhook?drop_pending_updates=true`;
+        const res = await fetch(url);
+        const data = await res.json();
+        console.log("Webhook cleared successfully:", data);
+    } catch (err) {
+        console.error("Failed to clear webhook:", err.message);
+    }
+}
+
 async function scanMarketOpportunities(isManualTrigger = false, manualChatId = null) {
     try {
         totalScansCount++;
@@ -68,8 +78,6 @@ async function scanMarketOpportunities(isManualTrigger = false, manualChatId = n
         const feeData = await provider.getFeeData();
         const gasPrice = feeData.gasPrice || feeData.maxFeePerGas || ethers.parseUnits("25", 9);
         const gasCostInAvax = gasPrice * ESTIMATED_GAS_UNITS;
-
-        let foundOpportunity = false;
 
         for (const token of TARGET_TOKENS) {
             try {
@@ -114,7 +122,6 @@ async function scanMarketOpportunities(isManualTrigger = false, manualChatId = n
                 const minNetProfitThreshold = token.name === "JOE" ? ethers.parseUnits("0.1", token.decimals) : ethers.parseUnits("0.02", token.decimals);
 
                 if (netProfit > minNetProfitThreshold) {
-                    foundOpportunity = true;
                     const alertText =
                         `🚀 *Baran Arbitrage Signal (${token.name})!*\n\n` +
                         `📍 *Route:* ${executionRoute}\n` +
@@ -146,17 +153,23 @@ async function scanMarketOpportunities(isManualTrigger = false, manualChatId = n
 
 async function pollTelegramCommands() {
     try {
-        const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getUpdates?offset=${telegramOffset}&timeout=5`;
+        const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getUpdates?offset=${telegramOffset}&timeout=2`;
         const response = await fetch(url);
         const data = await response.json();
 
-        if (data.ok && data.result.length > 0) {
+        if (!data.ok) {
+            console.error("Telegram Polling Error Response:", data);
+            return;
+        }
+
+        if (data.result && data.result.length > 0) {
             for (const update of data.result) {
                 telegramOffset = update.update_id + 1;
 
                 if (update.message && update.message.text) {
                     const chatId = update.message.chat.id;
                     const text = update.message.text.trim();
+                    console.log(`Received command from chat ${chatId}: ${text}`);
 
                     if (text === "/status") {
                         const statusMsg = `🟢 *Baran Engine Status*\n\n` +
@@ -174,15 +187,19 @@ async function pollTelegramCommands() {
                             `/scan - Trigger manual market scan\n` +
                             `/help - Show available commands`;
                         await sendTelegramMessage(chatId, helpMsg);
+                    } else {
+                        await sendTelegramMessage(chatId, `❓ Unknown command. Use /help to see available commands.`);
                     }
                 }
             }
         }
     } catch (err) {
-        // Silent catch for polling connection stability
+        console.error("Poll Exception:", err.message);
     }
 }
 
-console.log("Baran Command Center & Multi-Pair Engine Activated.");
-setInterval(() => scanMarketOpportunities(false), 4000);
-setInterval(pollTelegramCommands, 3000);
+console.log("Baran Command Center & Multi-Pair Engine Initializing...");
+clearTelegramWebhook().then(() => {
+    setInterval(() => scanMarketOpportunities(false), 4000);
+    setInterval(pollTelegramCommands, 3000);
+});
