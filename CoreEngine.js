@@ -13,7 +13,6 @@ const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ? process.env.TELEGRAM
 const RENDER_EXTERNAL_URL = "https://baran-scanner.onrender.com";
 const ADMIN_CHAT_ID = "589920599";
 const ADMIN_WALLET = "0xDda2b17Dc7437700DE7EeFe564610a6a1976de6c";
-const allowedUsers = new Set([ADMIN_CHAT_ID, 589920599, "589920599", Number(ADMIN_CHAT_ID)]);
 
 if (!TELEGRAM_BOT_TOKEN) {
     console.error("CRITICAL ERROR: TELEGRAM_BOT_TOKEN is missing in environment variables!");
@@ -89,14 +88,7 @@ async function handleTelegramUpdate(update) {
     if (update.message && update.message.text) {
         const chatId = update.message.chat.id;
         const text = update.message.text.trim();
-        const chatIdStr = chatId.toString();
-        const chatIdNum = Number(chatId);
-        console.log(`Received command from chat ${chatIdStr}: ${text}`);
-
-        if (!allowedUsers.has(chatIdStr) && !allowedUsers.has(chatIdNum) && chatIdStr !== ADMIN_CHAT_ID) {
-            await sendTelegramMessage(chatId, `🔒 *Access Denied*\nYour Telegram Chat ID is: \`${chatIdStr}\`\nUpdate ADMIN_CHAT_ID in your code with this number.`);
-            return;
-        }
+        console.log(`Received command from chat ${chatId}: ${text}`);
 
         if (text === "/status") {
             const statusMsg = `🟢 *Baran Micro-SaaS Status*\n\n` +
@@ -116,7 +108,7 @@ async function handleTelegramUpdate(update) {
                 `\`${ADMIN_WALLET}\`\n\n` +
                 `Once transferred, your node access will be authorized.`;
             await sendTelegramMessage(chatId, subMsg);
-        } else if (text === "/help") {
+        } else if (text === "/help" || text === "/start") {
             const helpMsg = `🤖 *Baran Bot Commands*\n\n` +
                 `/status - Check system health\n` +
                 `/scan - Trigger manual scan\n` +
