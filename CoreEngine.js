@@ -183,7 +183,7 @@ async function pollTelegramCommands() {
                     console.log(`Received command from chat ${chatIdStr}: ${text}`);
 
                     if (!allowedUsers.has(chatIdStr)) {
-                        await sendTelegramMessage(chatId, `🔒 *Access Denied:* This is a private infrastructure tool.`);
+                        await sendTelegramMessage(chatId, `🔒 *Access Denied*\nYour Telegram Chat ID is: \`${chatIdStr}\`\nUpdate ADMIN_CHAT_ID in your code with this number.`);
                         continue;
                     }
 
