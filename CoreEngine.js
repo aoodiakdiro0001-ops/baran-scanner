@@ -12,8 +12,12 @@ let rpcIndex = 0;
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN ? process.env.TELEGRAM_BOT_TOKEN.trim() : "";
 const RENDER_EXTERNAL_URL = "https://baran-scanner.onrender.com";
 const ADMIN_CHAT_ID = "589920599";
-const CHANNEL_ID = "@baran_3dex_signals"; // معرف قناتك العامة لبث الإشارات
+const PUBLIC_CHANNEL_ID = "@baran_3dex_signals"; // القناة العامة للتسويق
+const VIP_CHANNEL_ID = process.env.VIP_CHANNEL_ID || ""; // معرف القناة الخاصة (VIP) للمشتركين
 const ADMIN_WALLET = "0xDda2b17Dc7437700DE7EeFe564610a6a1976de6c";
+
+// سجل لتخزين الحوالات المستخدمة حتى لا يتم تكريرها
+const usedTxHashes = new Set();
 
 if (!TELEGRAM_BOT_TOKEN) {
     console.error("CRITICAL ERROR: TELEGRAM_BOT_TOKEN is missing in environment variables!");
@@ -73,6 +77,29 @@ async function sendTelegramMessage(chatId, message) {
     }
 }
 
+async function createVipInviteLink() {
+    if (!TELEGRAM_BOT_TOKEN || !VIP_CHANNEL_ID) return null;
+    try {
+        const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/createChatInviteLink`;
+        const res = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                chat_id: VIP_CHANNEL_ID,
+                member_limit: 1, // رابط مخصص لشخص واحد فقط
+                expire_date: Math.floor(Date.now() / 1000) + 3600 // الصلاحية لساعة واحدة
+            })
+        });
+        const data = await res.json();
+        if (data.ok && data.result) {
+            return data.result.invite_link;
+        }
+    } catch (e) {
+        console.error("Invite Link Error:", e.message);
+    }
+    return null;
+}
+
 async function setupTelegramWebhook() {
     if (!TELEGRAM_BOT_TOKEN) return;
     try {
@@ -94,7 +121,7 @@ async function handleTelegramUpdate(update) {
 
         if (text === "/status") {
             const statusMsg = `🟢 *Baran Micro-SaaS Status*\n\n` +
-                `- State: Live & Secured (3-DEX Triangulation Active)\n` +
+                `- State: Live & Secured (Automated Verification Active)\n` +
                 `- Last Block: ${lastScannedBlock}\n` +
                 `- Total Scans: ${totalScansCount}\n` +
                 `- Active RPC: ${RPC_URLS[rpcIndex]}\n` +
@@ -106,15 +133,66 @@ async function handleTelegramUpdate(update) {
             await scanMarketOpportunities(true, chatId);
         } else if (text === "/subscribe") {
             const subMsg = `💎 *Baran Micro-SaaS Subscription*\n\n` +
-                `To access live arbitrage feeds across BaseSwap, AlienBase, and Aerodrome, send the fixed micro-fee of *0.0005 ETH* (or 1 USDC) to the official system treasury:\n\n` +
+                `To unlock instant automated access to the *VIP Arbitrage Channel*, send the fixed fee of *0.0005 ETH* (or 1 USDC) on Base network to:\n\n` +
                 `\`${ADMIN_WALLET}\`\n\n` +
-                `Once transferred, your node access will be authorized.`;
+                `After transferring, reply with your transaction hash using this command:\n` +
+                `\`/verify 0xYOUR_TX_HASH\``;
             await sendTelegramMessage(chatId, subMsg);
+        } else if (text.startsWith("/verify ")) {
+            const txHash = text.split(" ")[1];
+            if (!txHash || !txHash.startsWith("0x") || txHash.length !== 66) {
+                await sendTelegramMessage(chatId, `❌ Invalid transaction hash format. Please use: \`/verify 0x...\``);
+                return;
+            }
+
+            if (usedTxHashes.has(txHash)) {
+                await sendTelegramMessage(chatId, `⚠️ This transaction hash has already been used to claim access.`);
+                return;
+            }
+
+            await sendTelegramMessage(chatId, `⏳ Verifying transaction on Base network...`);
+
+            try {
+                const tx = await provider.getTransaction(txHash);
+                const receipt = await provider.getTransactionReceipt(txHash);
+
+                if (!tx || !receipt || receipt.status !== 1) {
+                    await sendTelegramMessage(chatId, `❌ Transaction not found or failed on-chain. Please check the hash.`);
+                    return;
+                }
+
+                if (tx.to && tx.to.toLowerCase() !== ADMIN_WALLET.toLowerCase()) {
+                    await sendTelegramMessage(chatId, `❌ This transaction was not sent to the official system treasury wallet.`);
+                    return;
+                }
+
+                // تسجيل الحوالة كمنجزة
+                usedTxHashes.add(txHash);
+
+                // إنشاء رابط دعوة خاص للقناة الخاصة
+                const inviteLink = await createVipInviteLink();
+                if (inviteLink) {
+                    const successMsg = `🎉 *Payment Verified Successfully!*\n\n` +
+                        `Your node and channel access have been authorized.\n\n` +
+                        `🔗 [Click here to join the VIP Channel](${inviteLink})\n\n` +
+                        `_(Note: This invite link is single-use and expires in 1 hour)._`;
+                    await sendTelegramMessage(chatId, successMsg);
+                    await sendTelegramMessage(ADMIN_CHAT_ID, `🔔 New automated subscription verified!\nTx: \`${txHash}\`\nUser Chat ID: ${chatId}`);
+                } else {
+                    await sendTelegramMessage(chatId, `⚠️ Payment verified, but VIP channel ID is not configured properly by admin. Please contact support.`);
+                }
+
+            } catch (err) {
+                console.error("Verification Error:", err.message);
+                await sendTelegramMessage(chatId, `❌ Error verifying transaction. Please try again later.`);
+            }
+
         } else if (text === "/help" || text === "/start") {
             const helpMsg = `🤖 *Baran Bot Commands*\n\n` +
                 `/status - Check system health\n` +
                 `/scan - Trigger manual scan\n` +
-                `/subscribe - View subscription details\n` +
+                `/subscribe - View subscription details & instructions\n` +
+                `/verify <txhash> - Verify payment & get instant VIP access\n` +
                 `/help - Show available commands`;
             await sendTelegramMessage(chatId, helpMsg);
         } else {
@@ -139,7 +217,7 @@ const server = http.createServer(async (req, res) => {
         });
     } else {
         res.writeHead(200, { "Content-Type": "text/plain" });
-        res.end("Baran Micro-SaaS Base Engine is active (3-DEX Channel Mode)!\n");
+        res.end("Baran Micro-SaaS Base Engine is active (Automated Verification Mode)!\n");
     }
 });
 
@@ -210,11 +288,12 @@ async function scanMarketOpportunities(isManualTrigger = false, manualChatId = n
                         `⛽ *Gas Cost:* ${ethers.formatUnits(gasCostInToken, token.decimals)} ${token.name}\n` +
                         `✨ *Net Profit:* \`${ethers.formatUnits(netProfit, token.decimals)} ${token.name}\`\n` +
                         `🌐 *Block:* ${currentBlock}\n\n` +
-                        `💡 *Want private instant alerts & VIP routing?* Type /subscribe to join.`;
+                        `🔥 *Get VIP instant arbitrage routing & feeds:* Type /subscribe`;
 
                     console.log(alertText);
-                    // إرسال الإشارة إلى القناة العامة وإلى حساب الإدارة
-                    await sendTelegramMessage(CHANNEL_ID, alertText);
+                    // إرسال التنبيه التشويقي للقناة العامة، والإشارات الكاملة للـ VIP إن وجدت
+                    if (PUBLIC_CHANNEL_ID) await sendTelegramMessage(PUBLIC_CHANNEL_ID, alertText);
+                    if (VIP_CHANNEL_ID) await sendTelegramMessage(VIP_CHANNEL_ID, `💎 *VIP Exclusive Signal*\n\n` + alertText);
                     await sendTelegramMessage(ADMIN_CHAT_ID, alertText);
                 }
             } catch (errToken) {}
@@ -226,7 +305,7 @@ async function scanMarketOpportunities(isManualTrigger = false, manualChatId = n
                 `- Total Scans: ${totalScansCount}\n` +
                 `- Exchanges: BaseSwap, AlienBase, Aerodrome\n` +
                 `- Treasury: \`${ADMIN_WALLET}\`\n` +
-                `- Status: Budget optimized ($11 capital profile active).`;
+                `- Status: Automated verification mode active.`;
             await sendTelegramMessage(manualChatId, reportText);
         } else {
             console.log(`Scanning block ${currentBlock} across 3 DEXs... Engine operating smoothly.`);
