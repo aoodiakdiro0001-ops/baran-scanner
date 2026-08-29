@@ -5,7 +5,7 @@ const http = require("http");
 const PORT = process.env.PORT || 10000;
 const server = http.createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "text/plain" });
-    res.end("Baran Scanner is active and running!\n");
+    res.end("Baran Micro-Inefficiency Engine is active and running!\n");
 });
 server.listen(PORT, () => {
     console.log(`HTTP server is listening on port ${PORT}`);
@@ -27,7 +27,8 @@ const ROUTER_ABI = [
 const WAVAX = "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7";
 const USDT = "0x9702230a8ea53601f5cd2dc00fdbc13d4d4a84fd";
 
-const TRADE_AMOUNT = ethers.parseUnits("1.0", 18);
+const TRADE_AMOUNT = ethers.parseUnits("1.0", 18); // حجم التداول التجريبي (1 AVAX)
+const ESTIMATED_GAS_UNITS = 250000n; // تقدير استهلاك الغاز لمعاملة الأربيتراج المزدوجة
 
 async function sendTelegramAlert(message) {
     try {
@@ -58,15 +59,11 @@ async function scanMarketOpportunities() {
 
         try {
             amountsJoe = await traderJoeContract.getAmountsOut(TRADE_AMOUNT, pathForward);
-        } catch (err) {
-            // تجاهل الاخطاء المؤقتة لعدم توفر السيولة اللحظية
-        }
+        } catch (err) {}
 
         try {
             amountsPangolin = await pangolinContract.getAmountsOut(TRADE_AMOUNT, pathForward);
-        } catch (err) {
-            // تجاهل الاخطاء المؤقتة لعدم توفر السيولة اللحظية
-        }
+        } catch (err) {}
 
         if (!amountsJoe || !amountsPangolin) {
             console.log("Scanning block... Insufficient liquidity on one or more DEXes.");
@@ -76,25 +73,51 @@ async function scanMarketOpportunities() {
         const outputJoe = amountsJoe[1];
         const outputPangolin = amountsPangolin[1];
 
-        let priceDifference = 0n;
+        let grossProfit = 0n;
         let executionRoute = "";
 
         if (outputJoe > outputPangolin) {
-            priceDifference = outputJoe - outputPangolin;
-            executionRoute = "Buy on Pangolin -> Sell on Trader Joe";
+            grossProfit = outputJoe - outputPangolin; // بالـ USDT (6 خانات عشرية)
+            executionRoute = "Buy on Pangolin ➔ Sell on Trader Joe";
         } else {
-            priceDifference = outputPangolin - outputJoe;
-            executionRoute = "Buy on Trader Joe -> Sell on Pangolin";
+            grossProfit = outputPangolin - outputJoe;
+            executionRoute = "Buy on Trader Joe ➔ Sell on Pangolin";
         }
 
-        const profitThreshold = (TRADE_AMOUNT * 2n) / 1000n;
+        // 1. جلب تسعيرة الغاز اللحظية بدقة
+        const feeData = await provider.getFeeData();
+        const gasPrice = feeData.gasPrice || feeData.maxFeePerGas || ethers.parseUnits("25", 9);
+        const gasCostInAvax = gasPrice * ESTIMATED_GAS_UNITS; // تكلفة الغاز بالـ AVAX (18 خانة)
 
-        if (priceDifference > profitThreshold) {
-            const alertText = `🚨 *Baran Arbitrage Signal Detected!*\n\nRoute: ${executionRoute}\nSpread: ${ethers.formatUnits(priceDifference, 6)} USDT\nNetwork: Avalanche C-Chain`;
+        // 2. جلب سعر صرف AVAX مقابل USDT لحظياً لحساب قيمة الغاز بالدولار
+        let wavaxToUsdtRate = ethers.parseUnits("25", 6);
+        try {
+            const rateAmounts = await traderJoeContract.getAmountsOut(ethers.parseUnits("1.0", 18), pathForward);
+            wavaxToUsdtRate = rateAmounts[1];
+        } catch (e) {}
+
+        // 3. تحويل تكلفة الغاز من AVAX إلى USDT بدقة رياضية مطلقة
+        const gasCostInUsdt = (gasCostInAvax * wavaxToUsdtRate) / ethers.parseUnits("1.0", 18);
+
+        // 4. حساب صافي الربح الحقيقي (الإجمالي ناقص الغاز)
+        const netProfit = grossProfit - gasCostInUsdt;
+
+        // عتبة الربح الصافي الأدنى (يجب أن يكون الصافي أكبر من 0.02 USDT لضمان الربحية المطلقة)
+        const minNetProfitThreshold = ethers.parseUnits("0.02", 6);
+
+        if (netProfit > minNetProfitThreshold) {
+            const alertText =
+                `🚀 *Baran Micro-Inefficiency Signal!*\n\n` +
+                `📍 *Route:* ${executionRoute}\n` +
+                `💰 *Gross Spread:* ${ethers.formatUnits(grossProfit, 6)} USDT\n` +
+                `⛽ *Gas Cost:* ${ethers.formatUnits(gasCostInUsdt, 6)} USDT\n` +
+                `✨ *Net Profit:* \`${ethers.formatUnits(netProfit, 6)} USDT\`\n` +
+                `🌐 *Network:* Avalanche C-Chain`;
+
             console.log(alertText);
             await sendTelegramAlert(alertText);
         } else {
-            console.log("Scanning block... Market balanced (USDT pair active).");
+            console.log(`Scanning... Gross: ${ethers.formatUnits(grossProfit, 6)} USDT | Gas: ${ethers.formatUnits(gasCostInUsdt, 6)} USDT | Net: ${ethers.formatUnits(netProfit, 6)} USDT`);
         }
 
     } catch (error) {
@@ -102,5 +125,5 @@ async function scanMarketOpportunities() {
     }
 }
 
-console.log("Baran Autonomous Engine Activated. Scanning blocks with USDT pair...");
+console.log("Baran Micro-Inefficiency Engine Activated. Net profit & dynamic gas calculation enabled.");
 setInterval(scanMarketOpportunities, 4000);
